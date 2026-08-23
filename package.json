@@ -1,0 +1,34 @@
+{
+  "name": "Chee's Wordle",
+  "shortName": "Wordle",
+  "longName": "Cheetah's Wordle",
+  "author": "Furcheee",
+  "version": "1.0.0",
+  "keywords": ["wordle"],
+  "private": true,
+  "dependencies": {},
+  "pebble": {
+    "displayName": "Chee's Wordle",
+    "uuid": "2ce1d334-823a-4f94-a878-e083cc40f7dc",
+    "sdkVersion": "3",
+    "enableMultiJS": true,
+    "targetPlatforms": [
+      "aplite",
+      "basalt",
+      "chalk",
+      "diorite",
+      "emery",
+      "flint",
+      "gabbro"
+    ],
+    "watchapp": {
+      "watchface": false
+    },
+    "messageKeys": [
+      "dummy"
+    ],
+    "resources": {
+      "media": []
+    }
+  }
+}
