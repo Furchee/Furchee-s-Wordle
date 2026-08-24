@@ -14,3 +14,4 @@ If you want something added or something breaks, please contact me here OR on an
 * Game logs progess (Total Games,Wins,Losses,Streak,Best Streak, Win Percentage as well as which row you solved in.)
 * One word a day (might change this to two a day --ie once every 12 hours)
 * Scrolling letters on button hold
+* Round displays are now supported! Letters wrap around screen for proper board real estate.
