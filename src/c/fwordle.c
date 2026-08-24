@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
+#include <math.h>
 #include "wordlist.h"
 
 #define WORD_LENGTH 5
@@ -84,8 +85,6 @@ typedef struct {
 } DailyGameState;
 
 static DailyGameState s_daily_game;
-
-
 
 // ------------------------------------------------------------
 // Utility
@@ -388,66 +387,173 @@ static GColor color_for_state(TileState state) {
 static void draw_alphabet(Layer *layer, GContext *ctx) {
 	GRect bounds = layer_get_bounds(layer);
 
+//Perform the check to figure out whether it's a round display!
+#if defined(PBL_ROUND)
+
+	// Draw the alphabet around the circumference of the board.
+
+	const int center_x = bounds.size.w / 2;
+	const int center_y = bounds.size.h / 2;
+
+	// Radius of the alphabet circle.
+	//
+	// We leave some room between the board and alphabet.
+	// The value is based on the smaller screen dimension so
+	// this works on both Chalk and Gabbro.
+	const int radius =
+	(bounds.size.w < bounds.size.h
+		? bounds.size.w
+	: bounds.size.h) / 2 - 10;
+
+	const int letter_count = 26;
+
+	// Start at the top of the circle.
+	// Pebble graphics angles use degrees.
+	const float start_angle = -90.0f;
+
+	for (int i = 0; i < letter_count; i++) {
+
+		TileState state = s_alphabet_states[i];
+
+		// Hide letters that have been determined to be absent.
+		if (state == TILE_ABSENT) {
+			continue;
+		}
+
+		// Calculate the angle for this letter.
+		float angle =
+			start_angle +
+			(360.0f * i / letter_count);
+
+		// Convert degrees to radians.
+		float radians =
+			angle * 3.14159265f / 180.0f;
+
+		// Calculate the letter's position on the circle.
+		int x =
+			center_x +
+			(int)(radius * cosf(radians));
+
+		int y =
+			center_y +
+			(int)(radius * sinf(radians));
+
+		char letter[2] = {
+			'A' + i,
+			'\0'
+		};
+
+		// Choose color based on state.
+		if (state == TILE_CORRECT) {
+			graphics_context_set_text_color(
+				ctx,
+				GColorIslamicGreen
+			);
+		}
+		else if (state == TILE_PRESENT) {
+			graphics_context_set_text_color(
+				ctx,
+				GColorChromeYellow
+			);
+		}
+		else {
+			graphics_context_set_text_color(
+				ctx,
+				GColorWhite
+			);
+		}
+
+		// Center the letter around its calculated point.
+		graphics_draw_text(
+			ctx,
+			letter,
+			fonts_get_system_font(
+				FONT_KEY_GOTHIC_14_BOLD
+			),
+			GRect(
+				x - 9,
+				y - 9,
+				18,
+				18
+			),
+			GTextOverflowModeFill,
+			GTextAlignmentCenter,
+			NULL
+		);
+	}
+
+#else
+
+	// RECTANGULAR DISPLAY
+
 	const int columns = 13;
 	const int rows = 2;
 
-	const int cell_width = bounds.size.w / columns;
-	const int cell_height = bounds.size.h / rows;
+	const int cell_width =
+		bounds.size.w / columns;
+
+	const int cell_height =
+		bounds.size.h / rows;
 
 	for (int i = 0; i < 26; i++) {
-	TileState state = s_alphabet_states[i];
 
-	// Hide letters that have been determined to be absent.
-	if (state == TILE_ABSENT) {
-		continue;
+		TileState state =
+			s_alphabet_states[i];
+
+		// Hide letters that have been determined to be absent.
+		if (state == TILE_ABSENT) {
+			continue;
+		}
+
+		int row = i / columns;
+		int col = i % columns;
+
+		GRect rect = GRect(
+			col * cell_width,
+			row * cell_height,
+			cell_width,
+			cell_height
+		);
+
+		char letter[2] = {
+			'A' + i,
+			'\0'
+		};
+
+		// Choose color based on state.
+		if (state == TILE_CORRECT) {
+			graphics_context_set_text_color(
+				ctx,
+				GColorIslamicGreen
+			);
+		}
+		else if (state == TILE_PRESENT) {
+			graphics_context_set_text_color(
+				ctx,
+				GColorChromeYellow
+			);
+		}
+		else {
+			graphics_context_set_text_color(
+				ctx,
+				GColorWhite
+			);
+		}
+
+		graphics_draw_text(
+			ctx,
+			letter,
+			fonts_get_system_font(
+				FONT_KEY_GOTHIC_14_BOLD
+			),
+			rect,
+			GTextOverflowModeFill,
+			GTextAlignmentCenter,
+			NULL
+		);
 	}
 
-	int row = i / columns;
-	int col = i % columns;
-
-	GRect rect = GRect(
-	  col * cell_width,
-	  row * cell_height,
-	  cell_width,
-	  cell_height
-	);
-
-	char letter[2] = {
-	  'A' + i,
-	  '\0'
-	};
-
-	// Choose color based on state.
-	if (state == TILE_CORRECT) {
-	  graphics_context_set_text_color(
-		ctx,
-		GColorIslamicGreen
-	  );
-	} else if (state == TILE_PRESENT) {
-	  graphics_context_set_text_color(
-		ctx,
-		GColorChromeYellow
-	  );
-	} else {
-	  // TILE_EMPTY: letter has not been tried yet.
-	  graphics_context_set_text_color(
-		ctx,
-		GColorWhite
-	  );
-	}
-
-	graphics_draw_text(
-	  ctx,
-	  letter,
-	  fonts_get_system_font(
-		FONT_KEY_GOTHIC_14_BOLD
-	  ),
-	  rect,
-	  GTextOverflowModeFill,
-	  GTextAlignmentCenter,
-	  NULL
-	);
-  }
+#endif
 }
 
 
@@ -456,19 +562,44 @@ static void draw_board(Layer *layer, GContext *ctx) {
 
 	const int gap = 3;
 
+#if defined(PBL_ROUND)
+
+	// Leave room around the board for the alphabet.
+	//
+	// The board is deliberately smaller on the round display
+	// so the alphabet can follow its circumference.
+
+	const int available_width =
+		bounds.size.w - 100;
+
+	const int available_height =
+		bounds.size.h - 74;
+
+#else
+
+	const int available_width =
+		bounds.size.w;
+
+	const int available_height =
+		bounds.size.h;
+
+#endif
+
 	// Maximum tile size that fits horizontally.
 	const int tile_width =
-		(bounds.size.w - (WORD_LENGTH - 1) * gap)
+		(available_width - (WORD_LENGTH - 1) * gap)
 		/ WORD_LENGTH;
 
 	// Maximum tile size that fits vertically.
 	const int tile_height =
-		(bounds.size.h - (MAX_GUESSES - 1) * gap)
+		(available_height - (MAX_GUESSES - 1) * gap)
 		/ MAX_GUESSES;
 
 	// Use the smaller dimension so the board always fits.
 	const int cell_size =
-		tile_width < tile_height ? tile_width : tile_height;
+		tile_width < tile_height
+			? tile_width
+			: tile_height;
 
 	const int board_width =
 		WORD_LENGTH * cell_size +
@@ -478,11 +609,23 @@ static void draw_board(Layer *layer, GContext *ctx) {
 		MAX_GUESSES * cell_size +
 		(MAX_GUESSES - 1) * gap;
 
+#if defined(PBL_ROUND)
+
 	const int start_x =
 		(bounds.size.w - board_width) / 2;
 
 	const int start_y =
 		(bounds.size.h - board_height) / 2;
+
+#else
+
+	const int start_x =
+		(bounds.size.w - board_width) / 2;
+
+	const int start_y =
+		(bounds.size.h - board_height) / 2;
+
+#endif
 
 	for (int row = 0; row < MAX_GUESSES; row++) {
 	for (int col = 0; col < WORD_LENGTH; col++) {
@@ -1241,102 +1384,207 @@ static void click_config_provider(void *context) {
 // ------------------------------------------------------------
 
 static void window_load(Window *window) {
-	Layer *root = window_get_root_layer(window);
-	GRect bounds = layer_get_bounds(root);
+    Layer *root = window_get_root_layer(window);
+    GRect bounds = layer_get_bounds(root);
 
-	const int alphabet_height = 32;
-	const int selector_height = 25;
-	const int gap = 2;
+    window_set_background_color(
+        window,
+        GColorOxfordBlue
+    );
 
-	window_set_background_color(
-		window,
-		GColorOxfordBlue
-	);
+    const int selector_height = 25;
 
-	// Alphabet
-	s_alphabet_layer = layer_create(
-		GRect(
-		0,
-		0,
-		bounds.size.w,
-		alphabet_height
-		)
-	);
+#if defined(PBL_ROUND)
 
-	layer_set_update_proc(
-		s_alphabet_layer,
-		draw_alphabet
-	);
+    // ========================================================
+    // ROUND DISPLAY
+    // ========================================================
 
-	layer_add_child(
-		root,
-		s_alphabet_layer
-	);
-
-	// Board
-	const int board_y = alphabet_height + gap;
+    // Selector location adjustment. Swap out this number here v if looks like dookie.
+	const int selector_y = bounds.size.h - selector_height - 24;
 	
-	const int board_height =
-		bounds.size.h
-		- alphabet_height
-		- selector_height
-		- (gap * 2);
-
-	s_board_layer = layer_create(
-		GRect(
-		0,
-		board_y,
-		bounds.size.w,
-		board_height
-		)
-	);
-
-	layer_set_update_proc(
-		s_board_layer,
-		draw_board
-	);
-
-	layer_add_child(
-		root,
-		s_board_layer
-	);
-
-	// Selector
 	s_selector_layer = text_layer_create(
-		GRect(
-		0,
-		bounds.size.h - selector_height,
-		bounds.size.w,
-		selector_height
+    GRect(
+        0,
+        selector_y,
+        bounds.size.w,
+        selector_height
 		)
 	);
 
-	text_layer_set_background_color(
-		s_selector_layer,
-		GColorOxfordBlue
+    text_layer_set_background_color(
+        s_selector_layer,
+        GColorOxfordBlue
+    );
+
+    text_layer_set_text_color(
+        s_selector_layer,
+        GColorWhite
+    );
+
+    text_layer_set_text_alignment(
+        s_selector_layer,
+        GTextAlignmentCenter
+    );
+
+    text_layer_set_font(
+        s_selector_layer,
+        fonts_get_system_font(
+            FONT_KEY_GOTHIC_18_BOLD
+        )
+    );
+
+    layer_add_child(
+        root,
+        text_layer_get_layer(s_selector_layer)
+    );
+
+
+    // --------------------------------------------------------
+    // Round play area
+    // --------------------------------------------------------
+
+	s_alphabet_layer = layer_create(
+    GRect(
+        0,
+        0,
+        bounds.size.w,
+        bounds.size.h
+    )
 	);
 
-	text_layer_set_text_color(
-		s_selector_layer,
-		GColorWhite
+    layer_set_update_proc(
+        s_alphabet_layer,
+        draw_alphabet
+    );
+
+    layer_add_child(
+        root,
+        s_alphabet_layer
+    );
+
+
+    // Board occupies the same area.
+    // It is drawn after the alphabet, so the board sits
+    // visually in the middle of the alphabet ring.
+	s_board_layer = layer_create(
+    GRect(
+        0,
+        0,
+        bounds.size.w,
+        bounds.size.h
+		)
 	);
 
-	text_layer_set_text_alignment(
-		s_selector_layer,
-		GTextAlignmentCenter
-	);
+    layer_set_update_proc(
+        s_board_layer,
+        draw_board
+    );
 
-	text_layer_set_font(
-	s_selector_layer,
-	fonts_get_system_font(
-		FONT_KEY_GOTHIC_18_BOLD
-	)
-	);
+    layer_add_child(
+        root,
+        s_board_layer
+    );
 
-	layer_add_child(
-		root,
-		text_layer_get_layer(s_selector_layer)
-	);
+
+#else
+
+    // ========================================================
+    // RECTANGULAR DISPLAY
+    // ========================================================
+
+    const int alphabet_height = 32;
+    const int gap = 2;
+
+    // Alphabet
+    s_alphabet_layer = layer_create(
+        GRect(
+            0,
+            0,
+            bounds.size.w,
+            alphabet_height
+        )
+    );
+
+    layer_set_update_proc(
+        s_alphabet_layer,
+        draw_alphabet
+    );
+
+    layer_add_child(
+        root,
+        s_alphabet_layer
+    );
+
+
+    // Board
+    const int board_y =
+        alphabet_height + gap;
+
+    const int board_height =
+        bounds.size.h
+        - alphabet_height
+        - selector_height
+        - (gap * 2);
+
+    s_board_layer = layer_create(
+        GRect(
+            0,
+            board_y,
+            bounds.size.w,
+            board_height
+        )
+    );
+
+    layer_set_update_proc(
+        s_board_layer,
+        draw_board
+    );
+
+    layer_add_child(
+        root,
+        s_board_layer
+    );
+
+
+    // Selector
+    s_selector_layer = text_layer_create(
+        GRect(
+            0,
+            bounds.size.h - selector_height,
+            bounds.size.w,
+            selector_height
+        )
+    );
+
+    text_layer_set_background_color(
+        s_selector_layer,
+        GColorOxfordBlue
+    );
+
+    text_layer_set_text_color(
+        s_selector_layer,
+        GColorWhite
+    );
+
+    text_layer_set_text_alignment(
+        s_selector_layer,
+        GTextAlignmentCenter
+    );
+
+    text_layer_set_font(
+        s_selector_layer,
+        fonts_get_system_font(
+            FONT_KEY_GOTHIC_18_BOLD
+        )
+    );
+
+    layer_add_child(
+        root,
+        text_layer_get_layer(s_selector_layer)
+    );
+
+#endif
 
   // Results layer
 	s_results_layer = layer_create(
