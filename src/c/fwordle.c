@@ -6,7 +6,7 @@
 #include "wordlist.h"
 
 #define WORD_LENGTH 5
-#define MAX_GUESSES 5
+#define MAX_GUESSES 6
 #define WORD_COUNT (sizeof(WORDS) / sizeof(WORDS[0]))
 
 // ------------------------------------------------------------
@@ -570,7 +570,7 @@ static void draw_board(Layer *layer, GContext *ctx) {
 	// so the alphabet can follow its circumference.
 
 	const int available_width =
-		bounds.size.w - 100;
+		bounds.size.w - 120;
 
 	const int available_height =
 		bounds.size.h - 74;
@@ -1472,7 +1472,7 @@ static void window_load(Window *window) {
         0,
         0,
         bounds.size.w,
-        bounds.size.h
+        bounds.size.h 
 		)
 	);
 
