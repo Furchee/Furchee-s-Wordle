@@ -753,12 +753,24 @@ static void draw_results(Layer *layer, GContext *ctx) {
 		}
 	}
 
+	//Shift results for round screens
+	#if defined(PBL_ROUND)
+
+	const int label_width = 18;
+	const int bar_x = 30;
+	const int max_bar_width = bounds.size.w - bar_x - 45;
+	const int row_height = 12;
+	const int chart_y = 34;
+
+	#else
+
 	const int label_width = 18;
 	const int bar_x = 22;
-	const int max_bar_width =
-		bounds.size.w - bar_x - 25;
+	const int max_bar_width = bounds.size.w - bar_x - 25;
 	const int row_height = 14;
 	const int chart_y = 30;
+
+	#endif
 
 	for (int i = 0; i < MAX_GUESSES; i++) {
 		char row_label[4];
@@ -894,7 +906,8 @@ char answer_text[32];
 	stats_y += 17;
 }
 
-// Win percentage.
+// Statistics
+
 uint16_t win_percent = 0;
 
 if (s_stats.games_played > 0) {
@@ -905,17 +918,17 @@ if (s_stats.games_played > 0) {
 
 char stats_line[64];
 
-snprintf(
-	stats_line,
-	sizeof(stats_line),
-	"Played %d   Win %d%%",
-	s_stats.games_played,
-	win_percent
- );
-
 graphics_context_set_text_color(
 	ctx,
 	GColorWhite
+);
+
+// Played
+snprintf(
+	stats_line,
+	sizeof(stats_line),
+	"Played: %d",
+	s_stats.games_played
 );
 
 graphics_draw_text(
@@ -935,11 +948,36 @@ graphics_draw_text(
 	NULL
 );
 
-// Streak.
+// Win Percentage
 snprintf(
 	stats_line,
 	sizeof(stats_line),
-	"Streak %d   Best %d",
+	"Win Percentage: %d%%",
+	win_percent
+);
+
+graphics_draw_text(
+	ctx,
+	stats_line,
+	fonts_get_system_font(
+		FONT_KEY_GOTHIC_14
+	),
+	GRect(
+		0,
+		stats_y + 15,
+		bounds.size.w,
+		18
+	),
+	GTextOverflowModeFill,
+	GTextAlignmentCenter,
+	NULL
+);
+
+// Streak
+snprintf(
+	stats_line,
+	sizeof(stats_line),
+	"Current Streak: %d   Best: %d",
 	s_stats.current_streak,
 	s_stats.best_streak
 );
@@ -952,7 +990,7 @@ graphics_draw_text(
 	),
 	GRect(
 		0,
-		stats_y + 17,
+		stats_y + 30,
 		bounds.size.w,
 		18
 	),
