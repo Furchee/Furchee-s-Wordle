@@ -3,11 +3,12 @@
 #include <string.h>
 #include <ctype.h>
 #include <math.h>
-#include "wordlist.h"
+#include "allowed_words_index.h"
+#include "answers_metadata.h"
 
 #define WORD_LENGTH 5
 #define MAX_GUESSES 6
-#define WORD_COUNT (sizeof(WORDS) / sizeof(WORDS[0]))
+#define HARD_MODE_MESSAGE_KEY 0
 
 // ------------------------------------------------------------
 // Game state
@@ -59,6 +60,9 @@ typedef struct {
 static GameStats s_stats;
 static Screen s_screen = SCREEN_GAME;
 #define STATS_KEY 1
+#define HARD_MODE_KEY 3
+
+static bool s_hard_mode = false;
 
 //Daily game state
 
@@ -90,10 +94,59 @@ static DailyGameState s_daily_game;
 // Utility
 // ------------------------------------------------------------
 
-static void choose_new_word(void) {
-	int index = rand() % WORD_COUNT;
+static uint32_t pack_word(const char *word) {
+	uint32_t packed = 0;
 
-	strcpy(s_answer, WORDS[index]);
+	for (int i = 0; i < WORD_LENGTH; i++) {
+		char letter = (char)toupper((unsigned char)word[i]);
+		packed = (packed << 5) | (uint32_t)(letter - 'A');
+	}
+
+	return packed;
+}
+
+static void unpack_word(uint32_t packed, char output[WORD_LENGTH + 1]) {
+	for (int i = WORD_LENGTH - 1; i >= 0; i--) {
+		output[i] = (char)('A' + (packed & 0x1F));
+		packed >>= 5;
+	}
+
+	output[WORD_LENGTH] = '\0';
+}
+
+static bool read_packed_word(ResHandle resource, uint16_t index,
+		uint32_t *packed) {
+	uint8_t bytes[PACKED_WORD_SIZE];
+	size_t bytes_read = resource_load_byte_range(
+		resource,
+		(uint32_t)index * PACKED_WORD_SIZE,
+		bytes,
+		PACKED_WORD_SIZE
+	);
+
+	if (bytes_read != PACKED_WORD_SIZE) {
+		return false;
+	}
+
+	// The converter always writes records in big-endian byte order.
+	*packed = ((uint32_t)bytes[0] << 24) |
+		((uint32_t)bytes[1] << 16) |
+		((uint32_t)bytes[2] << 8) |
+		(uint32_t)bytes[3];
+	return true;
+}
+
+static void choose_new_word(void) {
+	uint16_t index = (uint16_t)(rand() % ANSWER_WORD_COUNT);
+	uint32_t packed;
+	ResHandle answers = resource_get_handle(RESOURCE_ID_ANSWERS);
+
+	if (read_packed_word(answers, index, &packed)) {
+		unpack_word(packed, s_answer);
+	} else {
+		APP_LOG(APP_LOG_LEVEL_ERROR, "Could not read answer %u", (unsigned int)index);
+		strcpy(s_answer, "ABACK");
+	}
 
 	memset(s_guesses, 0, sizeof(s_guesses));
 	memset(s_states, 0, sizeof(s_states));
@@ -271,23 +324,44 @@ save_stats();
 // ------------------------------------------------------------
 
 static bool word_is_in_wordlist(const char *word) {
-	for (unsigned int i = 0; i < WORD_COUNT; i++) {
-	bool match = true;
-
-	for (int j = 0; j < WORD_LENGTH; j++) {
-		if (toupper((unsigned char)word[j]) !=
-			toupper((unsigned char)WORDS[i][j])) {
-		match = false;
-		break;
-	  }
+	if (!word || word[0] == '\0') {
+		return false;
 	}
 
-	if (match) {
-		return true;
+	char first_letter = (char)toupper((unsigned char)word[0]);
+	if (first_letter < 'A' || first_letter > 'Z') {
+		return false;
 	}
-}
 
-return false;
+	uint32_t target = pack_word(word);
+	uint16_t prefix = (uint16_t)(first_letter - 'A');
+	uint16_t low = ALLOWED_WORD_LETTER_START[prefix];
+	uint16_t high = ALLOWED_WORD_LETTER_START[prefix + 1];
+	ResHandle allowed_words = resource_get_handle(RESOURCE_ID_ALLOWED_WORDS);
+
+	// Binary-search the alphabetically sorted range for the first letter.
+	while (low < high) {
+		uint16_t middle = (uint16_t)(low + (high - low) / 2);
+		uint32_t candidate;
+
+		if (!read_packed_word(allowed_words, middle, &candidate)) {
+			APP_LOG(APP_LOG_LEVEL_ERROR, "Could not read allowed word %u",
+				(unsigned int)middle);
+			return false;
+		}
+
+		if (candidate == target) {
+			return true;
+		}
+
+		if (candidate < target) {
+			low = (uint16_t)(middle + 1);
+		} else {
+			high = middle;
+		}
+	}
+
+	return false;
 }
 
 static void evaluate_guess(int row) {
@@ -362,6 +436,61 @@ static void update_alphabet(int row) {
 
 static bool guess_is_correct(void) {
 	return strcmp(s_guesses[s_current_row], s_answer) == 0;
+}
+
+static bool guess_obeys_hard_mode(int row) {
+	if (!s_hard_mode || row <= 0) {
+		return true;
+	}
+
+	char required_positions[WORD_LENGTH] = {0};
+	uint8_t minimum_counts[26] = {0};
+
+	for (int previous_row = 0; previous_row < row; previous_row++) {
+		uint8_t row_hit_counts[26] = {0};
+
+		for (int column = 0; column < WORD_LENGTH; column++) {
+			TileState state = s_states[previous_row][column];
+			char letter = s_guesses[previous_row][column];
+
+			if (state == TILE_CORRECT) {
+				required_positions[column] = letter;
+			}
+
+			if ((state == TILE_CORRECT || state == TILE_PRESENT) &&
+				letter >= 'A' && letter <= 'Z') {
+				row_hit_counts[letter - 'A']++;
+			}
+		}
+
+		for (int letter = 0; letter < 26; letter++) {
+			if (row_hit_counts[letter] > minimum_counts[letter]) {
+				minimum_counts[letter] = row_hit_counts[letter];
+			}
+		}
+	}
+
+	uint8_t guess_counts[26] = {0};
+	for (int column = 0; column < WORD_LENGTH; column++) {
+		char letter = s_guesses[row][column];
+
+		if (required_positions[column] != 0 &&
+			letter != required_positions[column]) {
+			return false;
+		}
+
+		if (letter >= 'A' && letter <= 'Z') {
+			guess_counts[letter - 'A']++;
+		}
+	}
+
+	for (int letter = 0; letter < 26; letter++) {
+		if (guess_counts[letter] < minimum_counts[letter]) {
+			return false;
+		}
+	}
+
+	return true;
 }
 
 // ------------------------------------------------------------
@@ -1104,7 +1233,7 @@ static void clear_invalid_word_message(void *context) {
 	}
 }
 
-static void show_invalid_word_message(void) {
+static void show_temporary_message(const char *message) {
 	// Cancel an existing timer if there is one.
 	if (s_invalid_word_timer != NULL) {
 	app_timer_cancel(s_invalid_word_timer);
@@ -1113,7 +1242,7 @@ static void show_invalid_word_message(void) {
 
 	text_layer_set_text(
 		s_selector_layer,
-		"NOT A WORD"
+		message
 	);
 
 	vibes_short_pulse();
@@ -1261,7 +1390,12 @@ static void submit_guess(void) {
 
 	// Check whether the guess is a valid word
 	if (!word_is_in_wordlist(s_guesses[s_current_row])) {
-		show_invalid_word_message();
+		show_temporary_message("NOT A WORD");
+		return;
+	}
+
+	if (!guess_obeys_hard_mode(s_current_row)) {
+		show_temporary_message("USE HINTS");
 		return;
 	}
 
@@ -1681,10 +1815,44 @@ static void window_unload(Window *window) {
 	layer_destroy(s_results_layer);
 }
 
+static void inbox_received_handler(
+    DictionaryIterator *iterator,
+    void *context
+) {
+    Tuple *hard_mode_tuple =
+        dict_find(iterator, HARD_MODE_MESSAGE_KEY);
+
+    if (hard_mode_tuple != NULL) {
+        s_hard_mode =
+            hard_mode_tuple->value->int32 != 0;
+
+        persist_write_bool(
+            HARD_MODE_KEY,
+            s_hard_mode
+        );
+
+        APP_LOG(
+            APP_LOG_LEVEL_INFO,
+            "Hard Mode: %s",
+            s_hard_mode ? "on" : "off"
+        );
+    }
+}
+
 static void init(void) {
 	srand(time(NULL));
 
 	load_stats();
+	if (persist_exists(HARD_MODE_KEY)) {
+		s_hard_mode = persist_read_bool(HARD_MODE_KEY);
+	}
+
+	app_message_register_inbox_received(inbox_received_handler);
+	AppMessageResult app_message_result = app_message_open(64, 64);
+	if (app_message_result != APP_MSG_OK) {
+		APP_LOG(APP_LOG_LEVEL_ERROR, "AppMessage open failed: %d",
+			(int)app_message_result);
+	}
 
 	s_window = window_create();
 
@@ -1705,6 +1873,7 @@ static void init(void) {
 }
 
 static void deinit(void) {
+	app_message_deregister_callbacks();
 	window_destroy(s_window);
 }
 

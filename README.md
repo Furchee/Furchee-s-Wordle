@@ -9,10 +9,13 @@ PLEASE KEEP IN MIND that most of the code here was done using the help of ai mod
 If you want something added or something breaks, please contact me here OR on any IM of your choice under @furchee.
 
 # Features so far:
-* Compiled list of wordle words (2350)
-* Game rejects words unless they are in the word list
-* 6 guessing rows to match actual wordle game
-* Game logs progress (Total Games,Wins,Losses,Streak,Best Streak, Win Percentage as well as which row you solved in.)
+
+* Compiled list of guessable words (2350)
+* Completely redone word lookup to fit the massive 15,000 allowed wordlist.
+* Game rejects words unless they are in the word lists
+* 6 rows to guess from (as per normal wordle games)
+* Game logs progress (Total Games, Wins, Losses, Streak, Best Streak, Win Percentage as well as which row you solved in.)
 * One word a day (might change this to two a day --ie once every 12 hours)
 * Scrolling letters on button hold
-* Round displays are now supported! Letters wrap around screen for proper board real estate.
+* Round displays are supported! Letters wrap around screen for proper board real estate.
+* Hard mode added through brand new settings page (Thanks HumbleWolf1797 for the suggestion!) 
