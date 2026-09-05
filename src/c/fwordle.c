@@ -990,19 +990,18 @@ static void draw_results(Layer *layer, GContext *ctx) {
 		GTextOverflowModeFill,
 		GTextAlignmentCenter,
 		NULL
-	);
-}
+		);
+	}
 
-// ----------------------------------------------------------
-// Statistics
-// ----------------------------------------------------------
+	// ----------------------------------------------------------
+	// Statistics
+	// ----------------------------------------------------------
 
-int stats_y =
-chart_y + MAX_GUESSES * row_height + 3;
+	int stats_y =
+	chart_y + MAX_GUESSES * row_height + 3;
 
-// Show the answer if the player lost.
-if (!s_won) {
-char answer_text[32];
+	// Show the answer if the player lost.
+	char answer_text[32];
 
 	snprintf(
 		answer_text,
@@ -1033,125 +1032,124 @@ char answer_text[32];
 		NULL
 	);
 	stats_y += 17;
-}
 
-// Statistics
+	// Statistics
 
-uint16_t win_percent = 0;
+	uint16_t win_percent = 0;
 
-if (s_stats.games_played > 0) {
+	if (s_stats.games_played > 0) {
 	win_percent =
 		(s_stats.games_won * 100)
 		/ s_stats.games_played;
-}
+	}
 
-char stats_line[64];
+	char stats_line[64];
 
-graphics_context_set_text_color(
-	ctx,
-	GColorWhite
-);
+	graphics_context_set_text_color(
+		ctx,
+		GColorWhite
+	);
 
-// Played
-snprintf(
-	stats_line,
-	sizeof(stats_line),
-	"Played: %d",
-	s_stats.games_played
-);
+	// Played
+	snprintf(
+		stats_line,
+		sizeof(stats_line),
+		"Played: %d",
+		s_stats.games_played
+	);
 
-graphics_draw_text(
-	ctx,
-	stats_line,
-	fonts_get_system_font(
-		FONT_KEY_GOTHIC_14
-	),
-	GRect(
-		0,
-		stats_y,
-		bounds.size.w,
-		18
-	),
-	GTextOverflowModeFill,
-	GTextAlignmentCenter,
-	NULL
-);
+	graphics_draw_text(
+		ctx,
+		stats_line,
+		fonts_get_system_font(
+			FONT_KEY_GOTHIC_14
+		),
+		GRect(
+			0,
+			stats_y,
+			bounds.size.w,
+			18
+		),
+		GTextOverflowModeFill,
+		GTextAlignmentCenter,
+		NULL
+	);
 
-// Win Percentage
-snprintf(
-	stats_line,
-	sizeof(stats_line),
-	"Win Percentage: %d%%",
-	win_percent
-);
+	// Win Percentage
+	snprintf(
+		stats_line,
+		sizeof(stats_line),
+		"Win Percentage: %d%%",
+		win_percent
+	);
 
-graphics_draw_text(
-	ctx,
-	stats_line,
-	fonts_get_system_font(
-		FONT_KEY_GOTHIC_14
-	),
-	GRect(
-		0,
-		stats_y + 15,
-		bounds.size.w,
-		18
-	),
-	GTextOverflowModeFill,
-	GTextAlignmentCenter,
-	NULL
-);
+	graphics_draw_text(
+		ctx,
+		stats_line,
+		fonts_get_system_font(
+			FONT_KEY_GOTHIC_14
+		),
+		GRect(
+			0,
+			stats_y + 15,
+			bounds.size.w,
+			18
+		),
+		GTextOverflowModeFill,
+		GTextAlignmentCenter,
+		NULL
+	);
 
-// Streak
-snprintf(
-	stats_line,
-	sizeof(stats_line),
-	"Current Streak: %d   Best: %d",
-	s_stats.current_streak,
-	s_stats.best_streak
-);
+	// Streak
+	snprintf(
+		stats_line,
+		sizeof(stats_line),
+		"Current Streak: %d   Best: %d",
+		s_stats.current_streak,
+		s_stats.best_streak
+	);
 
-graphics_draw_text(
-	ctx,
-	stats_line,
-	fonts_get_system_font(
-		FONT_KEY_GOTHIC_14
-	),
-	GRect(
-		0,
-		stats_y + 30,
-		bounds.size.w,
-		18
-	),
-	GTextOverflowModeFill,
-	GTextAlignmentCenter,
-	NULL
-);
+	graphics_draw_text(
+		ctx,
+		stats_line,
+		fonts_get_system_font(
+			FONT_KEY_GOTHIC_14
+		),
+		GRect(
+			0,
+			stats_y + 30,
+			bounds.size.w,
+			18
+		),
+		GTextOverflowModeFill,
+		GTextAlignmentCenter,
+		NULL
+	);
 
 // ----------------------------------------------------------
 // Footer
 // ----------------------------------------------------------
 
-graphics_context_set_text_color(
-	ctx,
-	GColorLightGray
-);
+	graphics_context_set_text_color(
+		ctx,
+		GColorLightGray
+	);
 
-graphics_draw_text(
-	ctx,
-	"New Word Tomorrow!",
-	fonts_get_system_font(
-		FONT_KEY_GOTHIC_14
-	),
+	graphics_draw_text(
+		ctx,
+		"New Word Tomorrow!",
+		fonts_get_system_font(
+			FONT_KEY_GOTHIC_14
+		),
 	GRect(
 		0,
 		bounds.size.h - 18,
 		bounds.size.w,
 		18
 		),
-		GTextOverflowModeFill,
-		GTextAlignmentCenter,
-		NULL
+	GTextOverflowModeFill,
+	GTextAlignmentCenter,
+	NULL
 	);
 }
 
@@ -1519,10 +1517,15 @@ static void select_click_handler(
 }
 
 static void back_click_handler(
-	ClickRecognizerRef recognizer,
-	void *context) {
+    ClickRecognizerRef recognizer,
+    void *context
+) {
+    if (s_screen == SCREEN_RESULTS || s_current_col == 0) {
+        window_stack_pop(true);
+        return;
+    }
 
-	delete_letter();
+    delete_letter();
 }
 
 static void click_config_provider(void *context) {
